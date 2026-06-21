@@ -2,6 +2,9 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" }
   ],
+  "redirects": [
+    { "source": "/", "destination": "/api", "permanent": false }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
