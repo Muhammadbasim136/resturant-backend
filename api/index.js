@@ -16,9 +16,7 @@ const uploadRoutes = require('../routes/upload');
 const app = express();
 
 app.use(
-  cors({
-    origin: process.env.FRONTEND_URL,
-  })
+  cors()
 );
 app.use(express.json());
 
