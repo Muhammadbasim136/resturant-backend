@@ -1,40 +1,84 @@
 const express = require('express');
 const router = express.Router();
+const { db } = require('../utils/firebaseAdmin');
+const { comparePassword } = require('../utils/password');
+const { signToken } = require('../utils/jwt');
 const isAdmin = require('../middleware/isAdmin');
 
 /**
- * The other routes' admin checks happen via the x-admin-email /
- * x-admin-password headers on every request (see middleware/isAdmin.js).
- * These two endpoints exist so the admin frontend has something to call:
- *  - POST /login: verify credentials once at login time, before storing
- *    them locally for use as headers on subsequent admin requests.
- *  - GET /verify: re-check stored credentials are still valid (e.g. on
- *    app load) using the exact same header-based check as every other
- *    admin route.
+ * Admin is just a normal Firestore user document whose `role` field is
+ * "admin" — there is no separate admin account system anymore. This
+ * route exists purely as a convenience: it's the same email+password
+ * check as POST /api/auth/login, plus a role guard, so the admin panel
+ * has a dedicated endpoint to call instead of relying on customer login
+ * and checking the role client-side.
+ *
+ * On success it returns a signed JWT exactly like /api/auth/login does —
+ * send it back on every subsequent admin request as:
+ *   Authorization: Bearer <jwt>
  */
 
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function publicUser(uid, data) {
+  return {
+    uid,
+    name: data.name || '',
+    email: data.email || '',
+    phone: data.phone || '',
+    role: data.role || 'user',
+  };
+}
+
 // POST /api/admin/login
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const password = String(req.body.password || '');
 
     if (!email || !password) {
       return res.status(400).json({ error: 'email and password are required' });
     }
 
-    if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD) {
-      return res.json({ success: true, message: 'Admin login successful' });
+    const snapshot = await db.collection('users').where('email', '==', email).limit(1).get();
+
+    if (snapshot.empty) {
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    return res.status(403).json({ error: 'Admin access denied' });
+    const doc = snapshot.docs[0];
+    const data = doc.data();
+
+    const passwordMatches = await comparePassword(password, data.password);
+    if (!passwordMatches) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    if (data.blocked === true) {
+      return res.status(403).json({ error: 'Your account has been blocked.' });
+    }
+
+    if (data.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied — admin accounts only.' });
+    }
+
+    const token = signToken(doc.id);
+
+    res.json({
+      success: true,
+      token,
+      user: publicUser(doc.id, data),
+    });
   } catch (err) {
     res.status(500).json({ error: 'Admin login failed: ' + err.message });
   }
 });
 
-// GET /api/admin/verify
+// GET /api/admin/verify — re-checks the JWT + role on app load/refresh
 router.get('/verify', isAdmin, (req, res) => {
-  res.json({ success: true, isAdmin: true });
+  res.json({ success: true, isAdmin: true, user: req.user });
 });
 
 module.exports = router;

@@ -43,6 +43,14 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/products (admin)
+//
+// Accepts an image two ways:
+//  1. Two-step flow (used by admin.html): image was already uploaded via
+//     POST /api/upload, and the resulting `imageUrl` / `imagePublicId`
+//     are sent here as plain JSON fields.
+//  2. One-step flow: an image file is attached directly to this same
+//     request as multipart/form-data under the field name "image".
+// If both are somehow present, the directly-attached file wins.
 router.post('/', isAdmin, upload.single('image'), async (req, res) => {
   try {
     const { name, description, price, category, featured } = req.body;
@@ -56,8 +64,8 @@ router.post('/', isAdmin, upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'price must be a number' });
     }
 
-    let imageUrl = null;
-    let imagePublicId = null;
+    let imageUrl = req.body.imageUrl || null;
+    let imagePublicId = req.body.imagePublicId || null;
 
     if (req.file) {
       const result = await uploadImage(req.file.buffer, 'products');
@@ -114,6 +122,17 @@ router.patch('/:id', isAdmin, upload.single('image'), async (req, res) => {
       }
     });
 
+    // Two-step flow: image was already uploaded via POST /api/upload and
+    // its URL was sent as a plain JSON field on this request.
+    if (req.body.imageUrl && !req.file) {
+      if (existing.imagePublicId) {
+        await deleteImage(existing.imagePublicId);
+      }
+      updates.imageUrl = req.body.imageUrl;
+      updates.imagePublicId = req.body.imagePublicId || null;
+    }
+
+    // One-step flow: an image file is attached directly to this request.
     if (req.file) {
       if (existing.imagePublicId) {
         await deleteImage(existing.imagePublicId);

@@ -7,14 +7,14 @@ const EXPIRES_IN = '30d';
  * enough to identify the user (uid). Role/blocked/verified status are
  * always re-checked against Firestore on every request rather than
  * trusted from the token, since those can change after issuance.
- * @param {{ uid: string }} payload
+ * @param {string} uid
  * @returns {string}
  */
-function signJwt(payload) {
+function signToken(uid) {
   if (!process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET environment variable is not set');
   }
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: EXPIRES_IN });
+  return jwt.sign({ uid }, process.env.JWT_SECRET, { expiresIn: EXPIRES_IN });
 }
 
 /**
@@ -30,4 +30,4 @@ function verifyJwt(token) {
   return jwt.verify(token, process.env.JWT_SECRET);
 }
 
-module.exports = { signJwt, verifyJwt };
+module.exports = { signToken, verifyJwt };

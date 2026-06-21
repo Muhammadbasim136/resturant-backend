@@ -1,9 +1,16 @@
-const admin = require('firebase-admin');
+const { initializeApp, cert, getApps } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 
 // Initialize Firebase Admin SDK exactly once (Vercel may reuse the same
 // serverless function instance across invocations, so guard against
 // re-initializing on every request).
-if (!admin.apps.length) {
+//
+// NOTE: firebase-admin v12+ moved to a modular API — the old
+// `admin.apps`, `admin.credential.cert()`, `admin.firestore()` style
+// (top-level `require('firebase-admin')` namespace) no longer exists.
+// We now import directly from `firebase-admin/app` and
+// `firebase-admin/firestore` instead.
+if (!getApps().length) {
   if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
     throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set');
   }
@@ -15,8 +22,8 @@ if (!admin.apps.length) {
     throw new Error('FIREBASE_SERVICE_ACCOUNT is not valid JSON: ' + err.message);
   }
 
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+  initializeApp({
+    credential: cert(serviceAccount),
   });
 }
 
@@ -24,6 +31,6 @@ if (!admin.apps.length) {
 // (see utils/cloudinary.js) because Firebase Storage now requires the
 // paid Blaze plan even for tiny usage — Firestore itself is unaffected
 // and stays on the free Spark plan.
-const db = admin.firestore();
+const db = getFirestore();
 
-module.exports = { admin, db };
+module.exports = { db };

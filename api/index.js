@@ -11,6 +11,7 @@ const reviewsRoutes = require('../routes/reviews');
 const categoriesRoutes = require('../routes/categories');
 const adminRoutes = require('../routes/admin');
 const authRoutes = require('../routes/auth');
+const uploadRoutes = require('../routes/upload');
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/upload', uploadRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/users', usersRoutes);

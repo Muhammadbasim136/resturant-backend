@@ -20,15 +20,29 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/banners (admin)
+//
+// Accepts an image two ways, same as products.js:
+//  1. Two-step flow (used by admin.html): image was already uploaded via
+//     POST /api/upload?folder=banners, and the resulting `imageUrl` /
+//     `imagePublicId` are sent here as plain JSON fields.
+//  2. One-step flow: an image file is attached directly to this same
+//     request as multipart/form-data under the field name "image".
 router.post('/', isAdmin, upload.single('image'), async (req, res) => {
   try {
     const { title, subtitle, buttonText, buttonLink, order } = req.body;
 
-    if (!req.file) {
-      return res.status(400).json({ error: 'Banner image is required' });
+    let imageUrl = req.body.imageUrl || null;
+    let imagePublicId = req.body.imagePublicId || null;
+
+    if (req.file) {
+      const result = await uploadImage(req.file.buffer, 'banners');
+      imageUrl = result.imageUrl;
+      imagePublicId = result.imagePublicId;
     }
 
-    const { imageUrl, imagePublicId } = await uploadImage(req.file.buffer, 'banners');
+    if (!imageUrl) {
+      return res.status(400).json({ error: 'Banner image is required' });
+    }
 
     const newBanner = {
       title: title || '',
@@ -76,6 +90,17 @@ router.patch('/:id', isAdmin, upload.single('image'), async (req, res) => {
       }
     });
 
+    // Two-step flow: image was already uploaded via POST /api/upload and
+    // its URL was sent as a plain JSON field on this request.
+    if (req.body.imageUrl && !req.file) {
+      if (existing.imagePublicId) {
+        await deleteImage(existing.imagePublicId);
+      }
+      updates.imageUrl = req.body.imageUrl;
+      updates.imagePublicId = req.body.imagePublicId || null;
+    }
+
+    // One-step flow: an image file is attached directly to this request.
     if (req.file) {
       if (existing.imagePublicId) {
         await deleteImage(existing.imagePublicId);
