@@ -4,7 +4,7 @@ const nodemailer = require('nodemailer');
 
 // Lazy-init transporter (same pattern as mailer.js)
 function getTransporter() {
-  return nodemailer.createTransporter({
+  return nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: process.env.MAIL_USER,
