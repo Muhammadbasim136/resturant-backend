@@ -23,6 +23,20 @@ function publicUser(uid, data) {
   };
 }
 
+function liftOnExpiry(timestamp) {
+  if (!timestamp) return false;
+  return new Date(timestamp).getTime() <= Date.now();
+}
+
+function isBlockedUntil(timestamp) {
+  if (!timestamp) return false;
+  return new Date(timestamp).getTime() > Date.now();
+}
+
+function blockUntil(minutes) {
+  return new Date(Date.now() + minutes * 60 * 1000).toISOString();
+}
+
 async function findUserByEmail(email) {
   const snapshot = await db.collection('users').where('email', '==', email).limit(1).get();
   if (snapshot.empty) return null;
@@ -216,15 +230,9 @@ router.post('/login', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────
 // POST /api/auth/forgot-password
-// Always returns the same generic message whether or not the email exists,
-// so an attacker can't use this endpoint to discover registered emails.
+// Send a reset code only if the email exists, otherwise return a user-visible error.
 // ─────────────────────────────────────────────────────────────────────────
 router.post('/forgot-password', async (req, res) => {
-  const GENERIC_RESPONSE = {
-    success: true,
-    message: 'If an account exists with that email, a reset PIN has been sent.',
-  };
-
   try {
     const email = normalizeEmail(req.body.email);
     if (!email) {
@@ -233,21 +241,93 @@ router.post('/forgot-password', async (req, res) => {
 
     const found = await findUserByEmail(email);
     if (!found) {
-      return res.json(GENERIC_RESPONSE);
+      return res.status(404).json({ error: 'No account found with this email.' });
+    }
+
+    if (isBlockedUntil(found.data.resetSendBlockedUntil)) {
+      const waitMinutes = Math.ceil((new Date(found.data.resetSendBlockedUntil).getTime() - Date.now()) / 60000);
+      return res.status(429).json({ error: `Too many code requests. Please wait ${waitMinutes} minute(s) before requesting another code.` });
+    }
+
+    const sendAttempts = (found.data.resetSendCount || 0) + 1;
+    const updatePayload = {
+      resetCodeHash: null,
+      resetCodeExpiresAt: null,
+      resetAttemptCount: 0,
+      resetBlockedUntil: null,
+      resetSendCount: sendAttempts,
+    };
+
+    if (sendAttempts >= 4) {
+      updatePayload.resetSendBlockedUntil = blockUntil(15);
     }
 
     const { code, codeHash, expiresAt } = await generateOtp();
-    await found.ref.update({ resetCodeHash: codeHash, resetCodeExpiresAt: expiresAt });
+    await found.ref.update({
+      ...updatePayload,
+      resetCodeHash: codeHash,
+      resetCodeExpiresAt: expiresAt,
+    });
 
-    try {
-      await sendPasswordResetCode(email, found.data.name, code);
-    } catch (mailErr) {
-      console.error('Failed to send password reset email:', mailErr.message);
+    await sendPasswordResetCode(email, found.data.name, code);
+
+    res.json({ success: true, message: 'A password reset code has been sent to your email.' });
+  } catch (err) {
+    console.error('Forgot password failed:', err);
+    res.status(500).json({ error: 'Unable to send reset email. Please try again later.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// POST /api/auth/verify-reset-code
+// Verify the reset code before allowing the user to enter a new password.
+// ─────────────────────────────────────────────────────────────────────────
+router.post('/verify-reset-code', async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+    const code = String(req.body.code || '').trim();
+
+    if (!email || !code) {
+      return res.status(400).json({ error: 'email and code are required' });
     }
 
-    res.json(GENERIC_RESPONSE);
+    const found = await findUserByEmail(email);
+    if (!found) {
+      return res.status(400).json({ error: 'Invalid email or code.' });
+    }
+
+    if (isBlockedUntil(found.data.resetBlockedUntil)) {
+      const waitMinutes = Math.ceil((new Date(found.data.resetBlockedUntil).getTime() - Date.now()) / 60000);
+      return res.status(429).json({ error: `Too many failed attempts. Please wait ${waitMinutes} minute(s) before trying again.` });
+    }
+
+    const result = await verifyOtp(code, found.data.resetCodeHash, found.data.resetCodeExpiresAt);
+    if (!result.valid) {
+      const attempts = (found.data.resetAttemptCount || 0) + 1;
+      const updatePayload = { resetAttemptCount: attempts };
+
+      if (attempts >= 6) {
+        updatePayload.resetBlockedUntil = blockUntil(15);
+      }
+
+      await found.ref.update(updatePayload);
+
+      if (attempts >= 6) {
+        return res.status(429).json({ error: 'Too many incorrect attempts. Please wait 15 minutes before trying again.' });
+      }
+
+      return res.status(400).json({ error: result.reason });
+    }
+
+    await found.ref.update({
+      resetAttemptCount: 0,
+      resetBlockedUntil: null,
+    });
+
+    res.json({ success: true, message: 'Code verified. Please enter a new password.' });
   } catch (err) {
-    res.status(500).json({ error: 'Something went wrong: ' + err.message });
+    console.error('Verify reset code failed:', err);
+    res.status(500).json({ error: 'Unable to verify code. Please try again later.' });
   }
 });
 
@@ -274,8 +354,26 @@ router.post('/reset-password', async (req, res) => {
 
     const result = await verifyOtp(code, found.data.resetCodeHash, found.data.resetCodeExpiresAt);
     if (!result.valid) {
+      const attempts = (found.data.resetAttemptCount || 0) + 1;
+      const updatePayload = { resetAttemptCount: attempts };
+
+      if (attempts >= 6) {
+        updatePayload.resetBlockedUntil = blockUntil(15);
+      }
+
+      await found.ref.update(updatePayload);
+
+      if (attempts >= 6) {
+        return res.status(429).json({ error: 'Too many incorrect attempts. Password reset is blocked for 15 minutes.' });
+      }
+
       return res.status(400).json({ error: result.reason });
     }
+
+    await found.ref.update({
+      resetAttemptCount: 0,
+      resetBlockedUntil: null,
+    });
 
     const hashedPassword = await hashPassword(newPassword);
 
