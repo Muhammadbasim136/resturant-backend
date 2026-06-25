@@ -144,4 +144,92 @@ router.delete('/:id', isAdmin, async (req, res) => {
   }
 });
 
+
+// GET /api/banners/promo (public)
+// Returns a single active promo banner for the homepage strip.
+// Admin manually creates a doc in 'promo' collection in Firestore.
+router.get('/promo', async (req, res) => {
+  try {
+    const snapshot = await db.collection('promo')
+      .where('active', '==', true)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      return res.status(404).json({ error: 'No active promo' });
+    }
+
+    const doc = snapshot.docs[0];
+    res.json({ id: doc.id, ...doc.data() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// GET /api/banners/promo (public)
+router.get('/promo', async (req, res) => {
+  try {
+    const snapshot = await db.collection('promo')
+      .where('active', '==', true)
+      .limit(1)
+      .get();
+    if (snapshot.empty) return res.status(404).json({ error: 'No active promo' });
+    const doc = snapshot.docs[0];
+    res.json({ id: doc.id, ...doc.data() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/banners/promo/admin (admin)
+router.get('/promo/admin', isAdmin, async (req, res) => {
+  try {
+    const snapshot = await db.collection('promo').limit(1).get();
+    if (snapshot.empty) return res.json(null);
+    const doc = snapshot.docs[0];
+    res.json({ id: doc.id, ...doc.data() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/banners/promo (admin) — create
+router.post('/promo', isAdmin, async (req, res) => {
+  try {
+    const { text, active } = req.body;
+    if (!text) return res.status(400).json({ error: 'text is required' });
+    // Only one promo allowed — delete existing first
+    const existing = await db.collection('promo').limit(1).get();
+    if (!existing.empty) await existing.docs[0].ref.delete();
+    const docRef = await db.collection('promo').add({
+      text,
+      active: active !== false,
+      updatedAt: new Date().toISOString()
+    });
+    const doc = await docRef.get();
+    res.status(201).json({ id: doc.id, ...doc.data() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/banners/promo (admin) — update
+router.patch('/promo', isAdmin, async (req, res) => {
+  try {
+    const snapshot = await db.collection('promo').limit(1).get();
+    if (snapshot.empty) return res.status(404).json({ error: 'No promo found' });
+    const ref = snapshot.docs[0].ref;
+    const updates = {};
+    if (req.body.text !== undefined) updates.text = req.body.text;
+    if (req.body.active !== undefined) updates.active = req.body.active === true || req.body.active === 'true';
+    updates.updatedAt = new Date().toISOString();
+    await ref.update(updates);
+    const doc = await ref.get();
+    res.json({ id: doc.id, ...doc.data() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
