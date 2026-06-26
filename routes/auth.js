@@ -141,12 +141,18 @@ router.post('/verify-email', async (req, res) => {
       updatedAt: new Date().toISOString(),
     });
 
-    const token = signToken(found.id);
+const token = signToken(found.id);
+
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
 
     res.json({
       success: true,
       message: 'Email verified! You are now logged in.',
-      token,
       user: publicUser(found.id, { ...found.data, emailVerified: true }),
     });
   } catch (err) {
@@ -216,11 +222,17 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const token = signToken(found.id);
+   const token = signToken(found.id);
+
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
 
     res.json({
       success: true,
-      token,
       user: publicUser(found.id, found.data),
     });
   } catch (err) {
@@ -384,17 +396,32 @@ router.post('/reset-password', async (req, res) => {
       updatedAt: new Date().toISOString(),
     });
 
-    const token = signToken(found.id);
+  const token = signToken(found.id);
+
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
 
     res.json({
       success: true,
       message: 'Password reset successful. You are now logged in.',
-      token,
       user: publicUser(found.id, found.data),
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to reset password: ' + err.message });
   }
+});
+
+router.post('/logout', (req, res) => {
+  res.clearCookie('auth_token', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none'
+  });
+  res.json({ success: true });
 });
 
 module.exports = router;

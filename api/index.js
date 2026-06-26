@@ -14,16 +14,14 @@ const authRoutes = require('../routes/auth');
 const uploadRoutes   = require('../routes/upload');
 const contactRoutes  = require('../routes/contact');
 
+const cookieParser = require('cookie-parser');
 const app = express();
 
-app.use(
-  cors()
-);
-app.use(express.json());
-
-app.get('/api', (req, res) => {
-  res.json({ message: 'Centraa backend is running' });
-});
+app.use(cors({
+  origin: 'https://centraa-system.netlify.app',
+  credentials: true
+}));app.use(express.json());
+app.use(cookieParser());
 
 // GET /api/health — quick sanity check that the function is deployed and
 // can talk to Firestore. Visit this first after deploying / setting env vars.

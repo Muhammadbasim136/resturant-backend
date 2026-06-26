@@ -18,13 +18,11 @@ const { verifyJwt } = require('../utils/jwt');
  */
 module.exports = async function isAdmin(req, res, next) {
   try {
-    const authHeader = req.headers.authorization || '';
-    const [scheme, token] = authHeader.split(' ');
+    const token = req.cookies?.auth_token;
 
-    if (scheme !== 'Bearer' || !token) {
+    if (!token) {
       return res.status(401).json({ error: 'Unauthorized — no token provided' });
     }
-
     let payload;
     try {
       payload = verifyJwt(token);

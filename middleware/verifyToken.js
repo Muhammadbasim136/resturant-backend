@@ -1,6 +1,5 @@
 const { db } = require('../utils/firebaseAdmin');
 const { verifyJwt } = require('../utils/jwt');
-
 /**
  * Auth middleware — now backed by a real signed JWT instead of a raw
  * Firestore document ID in the Authorization header. The frontend gets
@@ -15,12 +14,9 @@ const { verifyJwt } = require('../utils/jwt');
  */
 module.exports = async function verifyToken(req, res, next) {
   try {
-    const authHeader = req.headers.authorization || '';
-    const parts = authHeader.split(' ');
-    const scheme = parts[0];
-    const token = parts[1];
+    const token = req.cookies?.auth_token;
 
-    if (!scheme || scheme !== 'Bearer' || !token) {
+    if (!token) {
       return res.status(401).json({ error: 'Unauthorized — no token provided' });
     }
 

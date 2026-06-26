@@ -90,7 +90,7 @@ router.get('/mine', verifyToken, async (req, res) => {
   try {
     const snapshot = await db.collection('orders').where('userId', '==', req.user.uid).get();
 
-    const orders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const orders = snapshot.docs.map((doc) => ({ _id: doc.id, id: doc.id, ...doc.data() }));
     orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     res.json(orders);
@@ -134,7 +134,7 @@ router.get('/:id', verifyToken, async (req, res) => {
       return res.status(403).json({ error: 'You do not have access to this order' });
     }
 
-    res.json({ id: doc.id, ...order });
+    res.json({ _id: doc.id, id: doc.id, ...order });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch order: ' + err.message });
   }
