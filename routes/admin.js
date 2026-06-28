@@ -75,6 +75,7 @@ router.post('/login', async (req, res) => {
 
 res.json({
   success: true,
+  token,
   user: publicUser(doc.id, data),
 });
   } catch (err) {

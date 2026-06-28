@@ -18,7 +18,7 @@ const { verifyJwt } = require('../utils/jwt');
  */
 module.exports = async function isAdmin(req, res, next) {
   try {
-    const token = req.cookies?.auth_token;
+    const token = req.cookies?.auth_token || req.headers?.authorization?.split(' ')[1];
 
     if (!token) {
       return res.status(401).json({ error: 'Unauthorized — no token provided' });
