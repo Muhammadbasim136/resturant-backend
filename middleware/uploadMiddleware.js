@@ -1,7 +1,7 @@
 const multer = require('multer');
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-const MAX_FILE_SIZE = 512000; // 500kb
+const MAX_FILE_SIZE = 5242880; // 5mb
 
 const multerInstance = multer({
   storage: multer.memoryStorage(),

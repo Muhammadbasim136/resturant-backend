@@ -66,11 +66,17 @@ router.post('/login', async (req, res) => {
 
     const token = signToken(doc.id);
 
-    res.json({
-      success: true,
-      token,
-      user: publicUser(doc.id, data),
-    });
+   res.cookie('auth_token', token, {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'none',
+  maxAge: 7 * 24 * 60 * 60 * 1000
+});
+
+res.json({
+  success: true,
+  user: publicUser(doc.id, data),
+});
   } catch (err) {
     res.status(500).json({ error: 'Admin login failed: ' + err.message });
   }
