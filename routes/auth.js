@@ -152,6 +152,7 @@ const token = signToken(found.id);
 
     res.json({
       success: true,
+      token,
       message: 'Email verified! You are now logged in.',
       user: publicUser(found.id, { ...found.data, emailVerified: true }),
     });
@@ -233,6 +234,7 @@ router.post('/login', async (req, res) => {
 
     res.json({
       success: true,
+      token,
       user: publicUser(found.id, found.data),
     });
   } catch (err) {
@@ -407,6 +409,7 @@ router.post('/reset-password', async (req, res) => {
 
     res.json({
       success: true,
+      token,
       message: 'Password reset successful. You are now logged in.',
       user: publicUser(found.id, found.data),
     });
