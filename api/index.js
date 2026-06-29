@@ -1,8 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-
+const rateLimit = require('express-rate-limit');
 const { db } = require('../utils/firebaseAdmin');
+
 const productsRoutes = require('../routes/products');
 const ordersRoutes = require('../routes/orders');
 const usersRoutes = require('../routes/users');
@@ -20,8 +21,21 @@ const app = express();
 app.use(cors({
   origin: 'https://centraa-system.netlify.app',
   credentials: true
-}));app.use(express.json());
+}));
+app.use(express.json());
 app.use(cookieParser());
+
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { error: 'Too many requests, please try again later.' }
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Too many login attempts, please try again after 15 minutes.' }
+});
 
 // GET /api/health — quick sanity check that the function is deployed and
 // can talk to Firestore. Visit this first after deploying / setting env vars.
@@ -39,6 +53,9 @@ app.get('/api/health', async (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use(generalLimiter);
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/admin/login', loginLimiter);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/products', productsRoutes);
