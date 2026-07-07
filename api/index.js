@@ -19,7 +19,7 @@ const cookieParser = require('cookie-parser');
 const app = express();
 
 app.use(cors({
-   origin: '',origin: 'https://centraa-system.netlify.app',
+   origin: 'https://centraa.vercel.app',
   credentials: true
 }));
 app.use(express.json());
